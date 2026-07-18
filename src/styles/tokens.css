@@ -1,0 +1,33 @@
+:root {
+  /* ── Charte Wajibu (drapeau comorien) — portée à l'identique ─────────────
+     vert du triangle = primaire ; quatre bandes = accents :
+     jaune (Mohéli), blanc (Anjouan), rouge (Mayotte), bleu (Grande Comore). */
+  --vert: #0b7a3b;
+  --vert-deep: #075c2c;
+  --vert-clair: #009543; /* alias de --vert-vif Wajibu (nom conservé ici) */
+  --jaune: #ffc61e;
+  --jaune-light: #ffd75e;
+  --jaune-text: #7a5c00; /* jaune lisible (AA) sur fonds clairs */
+  --rouge: #ce1126;
+  --bleu: #2f6fbf;
+  --creme: #f5f7f5;
+
+  --background: #f5f7f5;
+  --fg: #16211a;
+  --mutedfg: #4a5750;
+  --muted: #eef6f0;
+  --bordc: #d9ded9;
+  --inputc: #8b938c;
+  --ring: #0b7a3b;
+  --radius: 0.85rem;
+
+  /* ── Aliases legacy (hero vidéo & éléments sur fonds sombres/verts) ─────── */
+  --nuit: #052e18; /* vert-noir : scrim/loader du hero vidéo */
+  --ivoire: #f5f7f5; /* texte clair sur vidéo et fonds verts */
+  --or: var(--jaune); /* filets/accents du hero → jaune drapeau */
+  --voile: rgba(5, 46, 24, 0.55);
+
+  --display: "Fraunces", serif;
+  --data: "Manrope", sans-serif;
+  --body: "Manrope", sans-serif;
+}

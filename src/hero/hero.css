@@ -1,0 +1,242 @@
+/* ═══════════ HERO ═══════════ */
+.hero {
+  position: relative;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  /* Le body (charte claire Wajibu) est en texte foncé ; sur la vidéo, les
+     overlays restent en ivoire — couleur posée ici explicitement. */
+  color: var(--ivoire);
+  background: var(--nuit);
+}
+
+.hero__videos {
+  position: absolute;
+  inset: 0;
+}
+.hero__videos video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 70% center; /* avion au tiers droit → on garde la droite en mobile */
+  opacity: 0;
+  will-change: opacity;
+}
+.hero__videos video.is-front {
+  opacity: 1;
+}
+
+/* Dégradé de lisibilité côté gauche (zone overlays) */
+.hero__scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, var(--voile) 0%, rgba(10, 15, 12, 0.25) 38%, transparent 60%);
+}
+
+/* ─── Marque ─── */
+.hero__brand {
+  position: absolute;
+  top: 2.2rem;
+  left: 2.6rem;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+.hero__brand svg {
+  width: 34px;
+  height: 34px;
+  flex: none;
+}
+.hero__brand span {
+  font-family: var(--display);
+  font-size: 1.05rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+/* ─── Overlays « carte d'embarquement » ─── */
+.ov {
+  position: absolute;
+  left: 6vw;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 4;
+  max-width: 34rem;
+  opacity: 0;
+  visibility: hidden;
+}
+.ov__label {
+  font-family: var(--data);
+  font-weight: 400;
+  font-size: 0.72rem;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  color: var(--or);
+  margin-bottom: 1.1rem;
+}
+.ov__title {
+  font-family: var(--display);
+  font-size: clamp(2.2rem, 5.2vw, 4.4rem);
+  line-height: 1.04;
+  text-wrap: balance;
+}
+.ov__rule {
+  width: 0;
+  height: 1px;
+  background: var(--or);
+  margin: 1.5rem 0 1.3rem;
+}
+.ov__data {
+  font-family: var(--data);
+  font-weight: 300;
+  font-size: 0.95rem;
+  letter-spacing: 0.14em;
+  display: flex;
+  gap: 2.4rem;
+  flex-wrap: wrap;
+}
+.ov__data b {
+  font-weight: 500;
+  color: var(--or);
+  letter-spacing: 0.06em;
+}
+.ov .line {
+  overflow: hidden; /* pour les reveals par masque */
+}
+/* display:block pour permettre le reveal par masque (translateY) ;
+   .ov__data reste flex, sa propre déclaration ci-dessous fait foi. */
+.ov__label,
+.ov__title {
+  display: block;
+}
+
+/* ─── Trajectoire de vol (signature) ─── */
+.path {
+  position: absolute;
+  left: 50%;
+  bottom: 2.4rem;
+  transform: translateX(-50%);
+  z-index: 5;
+  width: min(420px, 72vw);
+}
+.path svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+.path .arc {
+  fill: none;
+  stroke: rgba(244, 240, 230, 0.28);
+  stroke-width: 1;
+  stroke-dasharray: 2 5;
+}
+.path .arc-done {
+  fill: none;
+  stroke: var(--or);
+  stroke-width: 1.4;
+}
+.path text {
+  font-family: var(--data);
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  fill: var(--ivoire);
+  opacity: 0.85;
+}
+.path .plane {
+  fill: var(--ivoire);
+}
+
+/* ─── Indication scroll ─── */
+.hint {
+  position: absolute;
+  right: 2.6rem;
+  bottom: 2.4rem;
+  z-index: 5;
+  font-family: var(--data);
+  font-size: 0.66rem;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  opacity: 0.6;
+  writing-mode: vertical-rl;
+}
+
+/* ─── Voile de chargement ─── */
+.loader {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  background: var(--nuit);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--data);
+  font-size: 0.7rem;
+  letter-spacing: 0.5em;
+  text-transform: uppercase;
+  color: var(--or);
+  transition: opacity 0.8s ease;
+}
+.loader.is-done {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ═══════════ MOBILE ═══════════ */
+@media (max-width: 640px) {
+  .hero__brand {
+    top: 1.4rem;
+    left: 1.4rem;
+  }
+  .hero__brand span {
+    font-size: 0.85rem;
+  }
+  .ov {
+    left: 1.6rem;
+    right: 1.6rem;
+    top: auto;
+    bottom: 7.5rem;
+    transform: none;
+    max-width: none;
+  }
+  .ov__data {
+    gap: 1.2rem;
+    font-size: 0.82rem;
+  }
+  .hero__scrim {
+    background: linear-gradient(0deg, var(--voile) 0%, rgba(10, 15, 12, 0.2) 45%, transparent 70%);
+  }
+  .path {
+    bottom: 1.5rem;
+  }
+  .hint {
+    display: none;
+  }
+}
+
+/* ═══════════ REDUCED MOTION ═══════════ */
+@media (prefers-reduced-motion: reduce) {
+  .hero {
+    height: auto;
+  }
+  .ov {
+    position: static;
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+    padding: 3rem 1.6rem;
+  }
+  .ov__rule {
+    width: 64px;
+  }
+  .hero__videos,
+  .path,
+  .hint,
+  .loader {
+    display: none;
+  }
+}

@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Air Comores Private Jets — Vol inter-îles</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Marcellus&family=Space+Grotesk:wght@300;400;500&family=Outfit:wght@200;300;400&display=swap" rel="stylesheet">
+<style>
+  /* ═══════════ TOKENS ═══════════ */
+  :root{
+    --nuit:      #0A0F0C;   /* fond profond */
+    --ivoire:    #F4F0E6;   /* texte principal */
+    --vert:      #0E4D34;   /* vert ancien drapeau */
+    --vert-clair:#1E7A54;
+    --or:        #C9A24B;   /* filets, marqueurs */
+    --voile:     rgba(10,15,12,.55);
+
+    --display: 'Marcellus', serif;
+    --data:    'Space Grotesk', monospace;
+    --body:    'Outfit', sans-serif;
+  }
+
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:auto}
+  body{background:var(--nuit);color:var(--ivoire);font-family:var(--body);overflow-x:hidden}
+
+  /* ═══════════ HERO ═══════════ */
+  .hero{position:relative;height:100vh;width:100%;overflow:hidden}
+
+  .hero__videos{position:absolute;inset:0}
+  .hero__videos video{
+    position:absolute;inset:0;width:100%;height:100%;
+    object-fit:cover;object-position:70% center; /* avion au tiers droit → on garde la droite en mobile */
+    opacity:0;will-change:opacity;
+  }
+  .hero__videos video.is-front{opacity:1}
+
+  /* Dégradé de lisibilité côté gauche (zone overlays) */
+  .hero__scrim{
+    position:absolute;inset:0;pointer-events:none;
+    background:linear-gradient(90deg, var(--voile) 0%, rgba(10,15,12,.25) 38%, transparent 60%);
+  }
+
+  /* ─── Marque ─── */
+  .hero__brand{
+    position:absolute;top:2.2rem;left:2.6rem;z-index:5;
+    display:flex;align-items:center;gap:.9rem;
+  }
+  .hero__brand svg{width:34px;height:34px;flex:none}
+  .hero__brand span{
+    font-family:var(--display);font-size:1.05rem;letter-spacing:.22em;
+    text-transform:uppercase;
+  }
+
+  /* ─── Overlays « carte d'embarquement » ─── */
+  .ov{
+    position:absolute;left:6vw;top:50%;transform:translateY(-50%);
+    z-index:4;max-width:34rem;opacity:0;visibility:hidden;
+  }
+  .ov__label{
+    font-family:var(--data);font-weight:400;font-size:.72rem;
+    letter-spacing:.42em;text-transform:uppercase;color:var(--or);
+    margin-bottom:1.1rem;
+  }
+  .ov__title{
+    font-family:var(--display);font-size:clamp(2.2rem,5.2vw,4.4rem);
+    line-height:1.04;text-wrap:balance;
+  }
+  .ov__rule{
+    width:0;height:1px;background:var(--or);margin:1.5rem 0 1.3rem;
+  }
+  .ov__data{
+    font-family:var(--data);font-weight:300;font-size:.95rem;
+    letter-spacing:.14em;display:flex;gap:2.4rem;flex-wrap:wrap;
+  }
+  .ov__data b{font-weight:500;color:var(--or);letter-spacing:.06em}
+  .ov .line{overflow:hidden}          /* pour les reveals par masque */
+  .ov .line > span{display:block}
+
+  /* ─── Trajectoire de vol (signature) ─── */
+  .path{
+    position:absolute;left:50%;bottom:2.4rem;transform:translateX(-50%);
+    z-index:5;width:min(420px,72vw);
+  }
+  .path svg{width:100%;height:auto;display:block;overflow:visible}
+  .path .arc{fill:none;stroke:rgba(244,240,230,.28);stroke-width:1;stroke-dasharray:2 5}
+  .path .arc-done{fill:none;stroke:var(--or);stroke-width:1.4}
+  .path text{
+    font-family:var(--data);font-size:11px;letter-spacing:.3em;
+    fill:var(--ivoire);opacity:.85;
+  }
+  .path .plane{fill:var(--ivoire)}
+
+  /* ─── Indication scroll ─── */
+  .hint{
+    position:absolute;right:2.6rem;bottom:2.4rem;z-index:5;
+    font-family:var(--data);font-size:.66rem;letter-spacing:.4em;
+    text-transform:uppercase;opacity:.6;writing-mode:vertical-rl;
+  }
+
+  /* ─── Voile de chargement ─── */
+  .loader{
+    position:absolute;inset:0;z-index:9;background:var(--nuit);
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--data);font-size:.7rem;letter-spacing:.5em;
+    text-transform:uppercase;color:var(--or);
+    transition:opacity .8s ease;
+  }
+  .loader.is-done{opacity:0;pointer-events:none}
+
+  /* ═══════════ SECTION SUIVANTE ═══════════ */
+  .next{
+    min-height:70vh;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:1.6rem;
+    padding:6rem 2rem;text-align:center;
+    background:
+      radial-gradient(60% 50% at 50% 0%, rgba(14,77,52,.35), transparent 70%),
+      var(--nuit);
+  }
+  .next h2{
+    font-family:var(--display);font-size:clamp(1.8rem,3.6vw,3rem);
+    max-width:26ch;line-height:1.15;
+  }
+  .next p{
+    font-family:var(--body);font-weight:200;max-width:44ch;
+    color:rgba(244,240,230,.72);
+  }
+  .next a{
+    font-family:var(--data);font-size:.78rem;letter-spacing:.34em;
+    text-transform:uppercase;color:var(--ivoire);text-decoration:none;
+    border:1px solid var(--or);padding:1.05rem 2.6rem;margin-top:.6rem;
+    transition:background .35s ease,color .35s ease;
+  }
+  .next a:hover{background:var(--or);color:var(--nuit)}
+
+  /* ═══════════ MOBILE ═══════════ */
+  @media (max-width:640px){
+    .hero__brand{top:1.4rem;left:1.4rem}
+    .hero__brand span{font-size:.85rem}
+    .ov{left:1.6rem;right:1.6rem;top:auto;bottom:7.5rem;transform:none;max-width:none}
+    .ov__data{gap:1.2rem;font-size:.82rem}
+    .hero__scrim{background:linear-gradient(0deg, var(--voile) 0%, rgba(10,15,12,.2) 45%, transparent 70%)}
+    .path{bottom:1.5rem}
+    .hint{display:none}
+  }
+
+  /* ═══════════ REDUCED MOTION ═══════════ */
+  @media (prefers-reduced-motion:reduce){
+    .hero{height:auto}
+    .ov{position:static;opacity:1;visibility:visible;transform:none;padding:3rem 1.6rem}
+    .ov__rule{width:64px}
+    .hero__videos,.path,.hint,.loader{display:none}
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════ HERO ═══════════════════ -->
+<section class="hero" id="hero">
+
+  <div class="hero__videos" id="videos"><!-- <video> injectés par JS --></div>
+  <div class="hero__scrim"></div>
+
+  <div class="hero__brand">
+    <!-- Croissant + 4 étoiles (ancien drapeau) -->
+    <svg viewBox="0 0 40 40" aria-hidden="true">
+      <circle cx="20" cy="20" r="19" fill="var(--vert)"/>
+      <path d="M24 8a12.5 12.5 0 1 0 0 24 10 10 0 1 1 0-24z" fill="var(--ivoire)"/>
+      <g fill="var(--ivoire)">
+        <circle cx="25.5" cy="13" r="1.15"/>
+        <circle cx="25.5" cy="17.7" r="1.15"/>
+        <circle cx="25.5" cy="22.4" r="1.15"/>
+        <circle cx="25.5" cy="27.1" r="1.15"/>
+      </g>
+    </svg>
+    <span>Air Comores<br>Private Jets</span>
+  </div>
+
+  <!-- Overlays générés par JS depuis la config -->
+
+  <!-- Trajectoire HAH → AJN -->
+  <div class="path" aria-hidden="true">
+    <svg viewBox="0 0 420 78">
+      <path class="arc"      d="M14 62 Q 210 -14 406 62" id="arcRef"/>
+      <path class="arc-done" d="M14 62 Q 210 -14 406 62" id="arcDone"/>
+      <circle cx="14"  cy="62" r="3" fill="var(--or)"/>
+      <circle cx="406" cy="62" r="3" fill="rgba(244,240,230,.5)" id="dotEnd"/>
+      <text x="14"  y="76" text-anchor="middle" id="codeFrom">HAH</text>
+      <text x="406" y="76" text-anchor="middle" id="codeTo">AJN</text>
+      <g id="planeMark">
+        <path class="plane" d="M0-5 L1.4-1.4 5.6 0 1.4 1.4 0 5 -1 1.2 -4 .4 -4 -.4 -1 -1.2 Z" transform="rotate(90)"/>
+      </g>
+    </svg>
+  </div>
+
+  <div class="hint">Faites défiler</div>
+  <div class="loader" id="loader">Préparation du vol</div>
+</section>
+
+<!-- ═══════════════ SECTION SUIVANTE ═══════════════ -->
+<section class="next">
+  <h2>Fiers de nos îles, heureux de vous y emmener</h2>
+  <p>Ngazidja, Ndzuwani, Mwali — nous relions l'archipel en moins d'une heure, à l'horaire qui vous convient. Réservation simple, accueil chaleureux, voyage d'exception : votre trajet est pris en charge de A à Z.</p>
+  <a href="#reservation">Je réserve mon vol</a>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script src="https://unpkg.com/lenis@1.1.18/dist/lenis.min.js"></script>
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   CONFIG — c'est ICI (et seulement ici) qu'on ajoutera
+   les vols 2 et 3 plus tard : un objet par clip, dans l'ordre.
+   ═══════════════════════════════════════════════════════════════ */
+const CLIPS = [
+  {
+    src: "videos/01-decollage-moroni.mp4",
+    label: "Bienvenue à bord · Décollage",
+    title: "Moroni s'éveille, le ciel vous attend",
+    data: [["Départ","06h30"],["Aéroport","Hahaya · HAH"]]
+  },
+  {
+    src: "videos/02-envol-anjouan.mp4",
+    label: "En vol · Au-dessus de l'archipel",
+    title: "Cap sur Anjouan, l'île aux parfums",
+    data: [["À partir de","45 000 KMF"],["Aller simple","par passager"]]
+  },
+  {
+    src: "videos/03-atterrissage-anjouan.mp4",
+    label: "Atterrissage · Karibu Ndzuwani",
+    title: "Ouani vous accueille, bon séjour à Anjouan",
+    data: [["Durée du vol","30 min"],["Aéroport","Ouani · AJN"]]
+  }
+  /* ── Vol 2 (Anjouan → Mohéli) : ajouter 3 objets ici ──
+     ── Vol 3 (Mohéli → Ngazidja) : puis 3 autres      ── */
+];
+
+const SCROLL_PER_CLIP = 150;   // % de hauteur d'écran de scroll par clip
+const CROSSFADE = 0.06;        // fondu entre clips (fraction d'un segment)
+
+/* ═══════════ Construction du DOM depuis la config ═══════════ */
+const videosWrap = document.getElementById("videos");
+const hero = document.getElementById("hero");
+const videos = [];
+const overlays = [];
+
+CLIPS.forEach((clip, i) => {
+  const v = document.createElement("video");
+  v.src = clip.src;
+  v.muted = true; v.playsInline = true; v.preload = "auto";
+  v.setAttribute("muted",""); v.setAttribute("playsinline","");
+  if (i === 0) v.classList.add("is-front");
+  videosWrap.appendChild(v);
+  videos.push(v);
+
+  const ov = document.createElement("div");
+  ov.className = "ov";
+  ov.innerHTML = `
+    <div class="line"><span class="ov__label">${clip.label}</span></div>
+    <div class="line"><span class="ov__title">${clip.title}</span></div>
+    <div class="ov__rule"></div>
+    <div class="line"><span class="ov__data">${
+      clip.data.map(([k,val]) => `<span>${k}&nbsp; <b>${val}</b></span>`).join("")
+    }</span></div>`;
+  hero.appendChild(ov);
+  overlays.push(ov);
+});
+
+/* ═══════════ Lenis (défilement doux) ═══════════ */
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+if (!reduceMotion) {
+  gsap.registerPlugin(ScrollTrigger);
+  try {
+    const lenis = new Lenis({ lerp: 0.09 });
+    lenis.on("scroll", ScrollTrigger.update);
+    gsap.ticker.add(t => lenis.raf(t * 1000));
+    gsap.ticker.lagSmoothing(0);
+  } catch (e) {
+    console.warn("Lenis indisponible — défilement natif utilisé.", e);
+  }
+}
+
+/* ═══════════ Attente des métadonnées vidéo ═══════════ */
+const ready = videos.map(v => new Promise(res => {
+  if (v.readyState >= 1) return res();
+  v.addEventListener("loadedmetadata", res, { once: true });
+  v.addEventListener("error", () => {
+    console.error("Vidéo introuvable : " + v.src +
+      " — vérifie le dossier videos/ et le nom du fichier.");
+    res();
+  }, { once: true });
+}));
+
+// Sécurité : on ne bloque jamais plus de 8 s sur le loader
+const timeout = new Promise(res => setTimeout(res, 8000));
+
+Promise.race([Promise.all(ready), timeout]).then(() => {
+  document.getElementById("loader").classList.add("is-done");
+  if (!reduceMotion) initScrub();
+});
+
+/* ═══════════ Scrub + overlays + trajectoire ═══════════ */
+function initScrub() {
+  const N = CLIPS.length;
+
+  // Lissage du currentTime : la cible vient du scroll, un rAF interpole
+  const targets = videos.map(() => 0);
+  gsap.ticker.add(() => {
+    videos.forEach((v, i) => {
+      if (!v.duration) return;
+      const t = targets[i];
+      if (Math.abs(v.currentTime - t) > 0.01) {
+        v.currentTime += (t - v.currentTime) * 0.22;
+      }
+    });
+  });
+
+  // Trajectoire
+  const arcDone = document.getElementById("arcDone");
+  const arcRef  = document.getElementById("arcRef");
+  const planeMark = document.getElementById("planeMark");
+  const dotEnd = document.getElementById("dotEnd");
+  const arcLen = arcRef.getTotalLength();
+  arcDone.style.strokeDasharray = arcLen;
+  arcDone.style.strokeDashoffset = arcLen;
+
+  // Timeline maître pilotée au scroll
+  const tl = gsap.timeline({
+    scrollTrigger: {
+      trigger: hero,
+      start: "top top",
+      end: "+=" + (N * SCROLL_PER_CLIP) + "%",
+      scrub: 0.6,
+      pin: true,
+      onUpdate(self) {
+        const p = Math.min(self.progress, 0.9999);
+        const seg = Math.floor(p * N);          // clip actif
+        const local = (p * N) - seg;            // progression dans le clip
+
+        videos.forEach((v, i) => {
+          v.classList.toggle("is-front", i === seg);
+          if (i === seg && v.duration) targets[i] = local * v.duration;
+          // pré-positionner le clip suivant sur sa première frame
+          if (i === seg + 1) targets[i] = 0;
+        });
+
+        // fondu de transition
+        if (local > 1 - CROSSFADE && videos[seg + 1]) {
+          const f = (local - (1 - CROSSFADE)) / CROSSFADE;
+          videos[seg + 1].classList.add("is-front");
+          videos[seg + 1].style.opacity = f;
+          videos[seg].style.opacity = 1 - f;
+        } else {
+          videos.forEach((v, i) => v.style.opacity = i === seg ? 1 : 0);
+        }
+
+        // trajectoire : l'avion progresse sur l'arc
+        const pt = arcRef.getPointAtLength(arcLen * p);
+        const ahead = arcRef.getPointAtLength(Math.min(arcLen, arcLen * p + 2));
+        const ang = Math.atan2(ahead.y - pt.y, ahead.x - pt.x) * 180 / Math.PI;
+        planeMark.setAttribute("transform", `translate(${pt.x},${pt.y}) rotate(${ang})`);
+        arcDone.style.strokeDashoffset = arcLen * (1 - p);
+        dotEnd.setAttribute("fill", p > 0.98 ? "var(--or)" : "rgba(244,240,230,.5)");
+      }
+    }
+  });
+
+  // Animations des overlays : chaque clip occupe 1 unité de la timeline
+  overlays.forEach((ov, i) => {
+    const label = ov.querySelector(".ov__label");
+    const title = ov.querySelector(".ov__title");
+    const rule  = ov.querySelector(".ov__rule");
+    const data  = ov.querySelector(".ov__data");
+
+    gsap.set(ov, { autoAlpha: 0 });
+    gsap.set([label, title, data], { yPercent: 110 });
+    gsap.set(rule, { width: 0 });
+
+    const IN = i + 0.06, OUT = i + 0.80;
+
+    tl.set(ov, { autoAlpha: 1 }, IN)
+      .to(label, { yPercent: 0, duration: 0.10, ease: "power3.out" }, IN)
+      .to(title, { yPercent: 0, duration: 0.14, ease: "power3.out" }, IN + 0.03)
+      .to(rule,  { width: "6.5rem", duration: 0.12, ease: "power2.inOut" }, IN + 0.07)
+      .to(data,  { yPercent: 0, duration: 0.10, ease: "power3.out" }, IN + 0.09)
+      .to(ov,    { autoAlpha: 0, y: -28, duration: 0.10, ease: "power2.in" }, OUT)
+      .set(ov,   { y: 0 }, OUT + 0.11);
+  });
+
+  // longueur totale de la timeline = nombre de clips
+  tl.set({}, {}, CLIPS.length);
+}
+</script>
+</body>
+</html>
