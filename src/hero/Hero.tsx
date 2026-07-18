@@ -1,12 +1,10 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { VOLS } from "../data/vols";
 import FlightPath, { type FlightPathHandle } from "./FlightPath";
 import "./hero.css";
 
 const SCROLL_PER_CLIP = 150; // % de hauteur d'écran de scroll par clip (desktop)
-const MOBILE_SCROLL_PER_CLIP = 100; // mobile : 1 geste de scroll ≈ 1 chapitre
 const CROSSFADE = 0.06; // fondu entre clips (fraction d'un segment)
 const LOADER_TIMEOUT_MS = 8000;
 
@@ -63,6 +61,8 @@ export default function Hero() {
     let cancelled = false;
     let ctx: ReturnType<typeof gsap.context> | undefined;
     let tickerFn: (() => void) | undefined;
+    let disarmMobile: (() => void) | undefined;
+    let onScrollRearm: (() => void) | undefined;
 
     Promise.race([Promise.all(ready), timeout]).then(() => {
       if (cancelled) return;
@@ -88,16 +88,18 @@ export default function Hero() {
         });
 
         if (isMobile) {
-          // ── Mode chapitres (mobile) : un geste de scroll = une séquence
-          // jouée en ENTIER (lecture native 60 fps, aucun seek). Le scroll
-          // s'aimante sur chaque chapitre ; le texte entre au début de la
-          // séquence et sort au chapitre suivant. ──
+          // ── Mode « séquences prioritaires » (mobile) : le scroll est
+          // VERROUILLÉ tant qu'on est dans le hero. Un geste vers le bas ne
+          // fait que lancer le chapitre suivant, et seulement quand la
+          // séquence en cours est terminée — la vidéo prime toujours sur le
+          // scroll. Après le dernier chapitre, le geste dépose pile au sommet
+          // de la section suivante et libère le scroll. ──
           let currentSeg = -1;
           // Texte affiché au DÉBUT de la séquence, retiré pendant l'action
           // (illisible sur image en mouvement), puis réaffiché à la FIN quand
           // la vidéo se fige sur sa dernière image.
           let hideCall: ReturnType<typeof gsap.delayedCall> | null = null;
-          const OVERLAY_INTRO_S = 2.4;
+          const OVERLAY_INTRO_S = 2.2;
 
           const showOverlay = (i: number) => {
             const { overlay, rule, parts } = overlayParts(i);
@@ -129,7 +131,7 @@ export default function Hero() {
             });
           };
 
-          const setSegment = (seg: number) => {
+          const playSegment = (seg: number) => {
             if (seg === currentSeg) return;
             const prev = currentSeg;
             currentSeg = seg;
@@ -167,59 +169,99 @@ export default function Hero() {
             });
           });
 
-          ScrollTrigger.create({
-            trigger: section,
-            start: "top top",
-            end: `+=${n * MOBILE_SCROLL_PER_CLIP}%`,
-            pin: true,
-            anticipatePin: 1,
-            // Aimantation au centre de chaque chapitre ; 0 et 1 restent
-            // atteignables pour entrer/sortir de la section sans résistance.
-            // Cadrage strict : quel que soit l'élan du geste, on n'avance que
-            // d'UN chapitre à la fois, et on ne sort de la section que depuis
-            // le dernier chapitre — l'aimant dépose alors pile au début de la
-            // section suivante (jamais au milieu).
-            snap: {
-              snapTo: (value) => {
-                const seg = Math.max(currentSeg, 0);
-                if (value < 0.04 && seg <= 0) return 0;
-                if (value > 0.96 && seg >= n - 1) return 1;
-                const raw = Math.min(Math.floor(value * n), n - 1);
-                const target = Math.max(seg - 1, Math.min(raw, seg + 1));
-                return (target + 0.5) / n;
-              },
-              duration: { min: 0.3, max: 0.8 },
-              ease: "power2.inOut",
-              delay: 0.05,
-            },
-            onUpdate(self) {
-              const p = Math.min(self.progress, 0.9999);
-              const raw = Math.floor(p * n);
-              // Même clamp que le snap : un chapitre à la fois, la séquence
-              // en cours n'est jamais sautée.
-              const target =
-                currentSeg < 0 ? raw : Math.max(currentSeg - 1, Math.min(raw, currentSeg + 1));
-              setSegment(target);
-              flightPathRef.current?.update(p);
-            },
-          });
+          // Arc de trajectoire : progresse avec la lecture de la séquence.
+          tickerFn = () => {
+            if (currentSeg < 0) return;
+            const video = videos[currentSeg];
+            const vp = video?.duration ? Math.min(video.currentTime / video.duration, 1) : 0;
+            flightPathRef.current?.update(Math.min((currentSeg + vp) / n, 0.9999));
+          };
+          gsap.ticker.add(tickerFn);
 
-          setSegment(0);
+          const isSequenceDone = () => {
+            const video = videos[currentSeg];
+            return !video || video.ended;
+          };
 
-          // Zone de transition (le hero glisse hors écran après le pin) :
-          // aimant binaire — soit hero plein écran, soit la section suivante
-          // pile à son sommet. Jamais d'arrêt au milieu.
-          ScrollTrigger.create({
-            trigger: section,
-            start: "bottom bottom",
-            end: "bottom top",
-            snap: {
-              snapTo: [0, 1],
-              duration: { min: 0.3, max: 0.7 },
-              ease: "power2.inOut",
-              delay: 0.05,
-            },
-          });
+          // ── Verrou de scroll absolu pendant les chapitres ──
+          // overflow:hidden neutralise tout défilement (natif ET Lenis) ;
+          // les gestes sont lus directement (molette / toucher).
+          const GESTURE_MIN_PX = 35;
+          let locked = false;
+          let releasing = false;
+          let gestureCooldown = false;
+          let touchStartY = 0;
+
+          const handleGesture = (delta: number) => {
+            if (Math.abs(delta) < GESTURE_MIN_PX || gestureCooldown) return;
+            gestureCooldown = true;
+            setTimeout(() => (gestureCooldown = false), 400);
+            if (!isSequenceDone()) return; // la séquence prime sur le scroll
+            if (delta > 0) {
+              if (currentSeg >= n - 1) release();
+              else playSegment(currentSeg + 1);
+            } else if (currentSeg > 0) {
+              playSegment(currentSeg - 1);
+            }
+          };
+
+          const onWheel = (e: WheelEvent) => {
+            e.preventDefault();
+            handleGesture(e.deltaY);
+          };
+          const onTouchStart = (e: TouchEvent) => {
+            touchStartY = e.touches[0].clientY;
+          };
+          const onTouchMove = (e: TouchEvent) => {
+            e.preventDefault(); // pas de scroll élastique pendant le verrou
+          };
+          const onTouchEnd = (e: TouchEvent) => {
+            handleGesture(touchStartY - e.changedTouches[0].clientY);
+          };
+
+          const arm = () => {
+            if (locked) return;
+            locked = true;
+            document.documentElement.style.overflow = "hidden";
+            // Lenis figé pendant le verrou : sinon il accumule les gestes
+            // bloqués et les applique d'un coup à la libération.
+            window.__lenis?.stop();
+            window.addEventListener("wheel", onWheel, { passive: false });
+            window.addEventListener("touchstart", onTouchStart, { passive: true });
+            window.addEventListener("touchmove", onTouchMove, { passive: false });
+            window.addEventListener("touchend", onTouchEnd, { passive: true });
+          };
+
+          const disarm = () => {
+            if (!locked) return;
+            locked = false;
+            document.documentElement.style.overflow = "";
+            window.__lenis?.start();
+            window.removeEventListener("wheel", onWheel);
+            window.removeEventListener("touchstart", onTouchStart);
+            window.removeEventListener("touchmove", onTouchMove);
+            window.removeEventListener("touchend", onTouchEnd);
+          };
+          disarmMobile = disarm;
+
+          const release = () => {
+            disarm();
+            releasing = true;
+            setTimeout(() => (releasing = false), 1600);
+            // Dépose pile au sommet de la section suivante.
+            const target = section.offsetTop + section.offsetHeight;
+            if (window.__lenis) window.__lenis.scrollTo(target, { duration: 0.9 });
+            else window.scrollTo({ top: target, behavior: "smooth" });
+          };
+
+          // De retour tout en haut de la page, le hero reprend la main.
+          onScrollRearm = () => {
+            if (!locked && !releasing && window.scrollY <= 1) arm();
+          };
+          window.addEventListener("scroll", onScrollRearm, { passive: true });
+
+          arm();
+          playSegment(0);
         } else {
           // ── Desktop : scrub image par image, currentTime lissé en rAF. ──
           const targets = videos.map(() => 0);
@@ -297,6 +339,8 @@ export default function Hero() {
     return () => {
       cancelled = true;
       if (tickerFn) gsap.ticker.remove(tickerFn);
+      disarmMobile?.();
+      if (onScrollRearm) window.removeEventListener("scroll", onScrollRearm);
       ctx?.revert();
     };
   }, []);

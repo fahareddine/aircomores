@@ -190,6 +190,13 @@
 }
 
 /* ═══════════ MOBILE ═══════════ */
+/* Vidéo centrée sur mobile (l'avion au milieu de l'écran). */
+@media (max-width: 767px), (pointer: coarse) and (hover: none) {
+  .hero__videos video {
+    object-position: center;
+  }
+}
+
 @media (max-width: 640px) {
   .hero__brand {
     top: 1.4rem;
