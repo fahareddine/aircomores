@@ -175,24 +175,51 @@ export default function Hero() {
             anticipatePin: 1,
             // Aimantation au centre de chaque chapitre ; 0 et 1 restent
             // atteignables pour entrer/sortir de la section sans résistance.
+            // Cadrage strict : quel que soit l'élan du geste, on n'avance que
+            // d'UN chapitre à la fois, et on ne sort de la section que depuis
+            // le dernier chapitre — l'aimant dépose alors pile au début de la
+            // section suivante (jamais au milieu).
             snap: {
               snapTo: (value) => {
-                if (value < 0.04) return 0;
-                if (value > 0.96) return 1;
-                return (Math.min(Math.floor(value * n), n - 1) + 0.5) / n;
+                const seg = Math.max(currentSeg, 0);
+                if (value < 0.04 && seg <= 0) return 0;
+                if (value > 0.96 && seg >= n - 1) return 1;
+                const raw = Math.min(Math.floor(value * n), n - 1);
+                const target = Math.max(seg - 1, Math.min(raw, seg + 1));
+                return (target + 0.5) / n;
               },
-              duration: { min: 0.25, max: 0.7 },
-              ease: "power2.out",
+              duration: { min: 0.3, max: 0.8 },
+              ease: "power2.inOut",
               delay: 0.05,
             },
             onUpdate(self) {
               const p = Math.min(self.progress, 0.9999);
-              setSegment(Math.floor(p * n));
+              const raw = Math.floor(p * n);
+              // Même clamp que le snap : un chapitre à la fois, la séquence
+              // en cours n'est jamais sautée.
+              const target =
+                currentSeg < 0 ? raw : Math.max(currentSeg - 1, Math.min(raw, currentSeg + 1));
+              setSegment(target);
               flightPathRef.current?.update(p);
             },
           });
 
           setSegment(0);
+
+          // Zone de transition (le hero glisse hors écran après le pin) :
+          // aimant binaire — soit hero plein écran, soit la section suivante
+          // pile à son sommet. Jamais d'arrêt au milieu.
+          ScrollTrigger.create({
+            trigger: section,
+            start: "bottom bottom",
+            end: "bottom top",
+            snap: {
+              snapTo: [0, 1],
+              duration: { min: 0.3, max: 0.7 },
+              ease: "power2.inOut",
+              delay: 0.05,
+            },
+          });
         } else {
           // ── Desktop : scrub image par image, currentTime lissé en rAF. ──
           const targets = videos.map(() => 0);
