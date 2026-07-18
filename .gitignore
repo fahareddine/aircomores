@@ -29,3 +29,6 @@ skills et mcp gsap/
 *.njsproj
 *.sln
 *.sw?
+
+.vercel
+.env*
