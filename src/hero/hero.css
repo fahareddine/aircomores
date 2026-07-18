@@ -2,6 +2,9 @@
 .hero {
   position: relative;
   height: 100vh;
+  /* svh : hauteur stable sur mobile (la barre d'adresse qui se replie ne fait
+     plus sauter le pin ScrollTrigger). */
+  height: 100svh;
   width: 100%;
   overflow: hidden;
   /* Le body (charte claire Wajibu) est en texte foncé ; sur la vidéo, les

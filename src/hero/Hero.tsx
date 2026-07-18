@@ -4,7 +4,8 @@ import { VOLS } from "../data/vols";
 import FlightPath, { type FlightPathHandle } from "./FlightPath";
 import "./hero.css";
 
-const SCROLL_PER_CLIP = 150; // % de hauteur d'écran de scroll par clip
+const SCROLL_PER_CLIP = 150; // % de hauteur d'écran de scroll par clip (desktop)
+const MOBILE_SCROLL_PER_CLIP = 100; // pin plus court sur mobile : plus réactif
 const CROSSFADE = 0.06; // fondu entre clips (fraction d'un segment)
 const LOADER_TIMEOUT_MS = 8000;
 
@@ -31,6 +32,13 @@ export default function Hero() {
     if (!section || videos.length !== CLIPS.length) return;
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // Sur mobile, chercher une image précise dans la vidéo à chaque scroll
+    // (seek) est trop lent → on laisse la vidéo de la phase active SE JOUER
+    // nativement (décodage matériel, 60 fps) et le scroll ne pilote que les
+    // phases, le crossfade, les overlays et la trajectoire.
+    const isMobile = window.matchMedia(
+      "(max-width: 767px), (pointer: coarse) and (hover: none)",
+    ).matches;
 
     const ready = videos.map(
       (video) =>
@@ -63,39 +71,64 @@ export default function Hero() {
         const n = CLIPS.length;
         const targets = videos.map(() => 0);
 
-        tickerFn = () => {
+        if (isMobile) {
+          // Lecture native en boucle sur la phase active.
+          videos.forEach((video) => {
+            if (video) video.loop = true;
+          });
+          videos[0]?.play().catch(() => {});
+        } else {
+          // Desktop : currentTime lissé en rAF vers la position dictée par le scroll.
+          tickerFn = () => {
+            videos.forEach((video, i) => {
+              if (!video?.duration) return;
+              const target = targets[i];
+              if (Math.abs(video.currentTime - target) > 0.01) {
+                video.currentTime += (target - video.currentTime) * 0.22;
+              }
+            });
+          };
+          gsap.ticker.add(tickerFn);
+        }
+
+        const syncMobilePlayback = (seg: number, inCrossfade: boolean) => {
           videos.forEach((video, i) => {
-            if (!video?.duration) return;
-            const target = targets[i];
-            if (Math.abs(video.currentTime - target) > 0.01) {
-              video.currentTime += (target - video.currentTime) * 0.22;
-            }
+            if (!video) return;
+            const shouldPlay = i === seg || (inCrossfade && i === seg + 1);
+            if (shouldPlay && video.paused) video.play().catch(() => {});
+            if (!shouldPlay && !video.paused) video.pause();
           });
         };
-        gsap.ticker.add(tickerFn);
 
         const tl = gsap.timeline({
           scrollTrigger: {
             trigger: section,
             start: "top top",
-            end: `+=${n * SCROLL_PER_CLIP}%`,
-            scrub: 0.6,
+            end: `+=${n * (isMobile ? MOBILE_SCROLL_PER_CLIP : SCROLL_PER_CLIP)}%`,
+            // Mobile : scrub direct (pas de traînée) — la vidéo n'étant plus
+            // scrubbée, la réactivité ne coûte plus rien.
+            scrub: isMobile ? true : 0.6,
             pin: true,
             anticipatePin: 1,
             onUpdate(self) {
               const p = Math.min(self.progress, 0.9999);
               const seg = Math.floor(p * n);
               const local = p * n - seg;
+              const inCrossfade = local > 1 - CROSSFADE && seg + 1 < n;
 
               videos.forEach((video, i) => {
                 if (!video) return;
                 video.classList.toggle("is-front", i === seg);
-                if (i === seg && video.duration) targets[i] = local * video.duration;
-                if (i === seg + 1) targets[i] = 0;
+                if (!isMobile) {
+                  if (i === seg && video.duration) targets[i] = local * video.duration;
+                  if (i === seg + 1) targets[i] = 0;
+                }
               });
 
+              if (isMobile) syncMobilePlayback(seg, inCrossfade);
+
               const next = videos[seg + 1];
-              if (local > 1 - CROSSFADE && next) {
+              if (inCrossfade && next) {
                 const f = (local - (1 - CROSSFADE)) / CROSSFADE;
                 next.classList.add("is-front");
                 next.style.opacity = String(f);
