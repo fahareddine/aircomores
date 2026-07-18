@@ -1,11 +1,12 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { VOLS } from "../data/vols";
 import FlightPath, { type FlightPathHandle } from "./FlightPath";
 import "./hero.css";
 
 const SCROLL_PER_CLIP = 150; // % de hauteur d'écran de scroll par clip (desktop)
-const MOBILE_SCROLL_PER_CLIP = 120; // pin un peu plus court sur mobile
+const MOBILE_SCROLL_PER_CLIP = 100; // mobile : 1 geste de scroll ≈ 1 chapitre
 const CROSSFADE = 0.06; // fondu entre clips (fraction d'un segment)
 const LOADER_TIMEOUT_MS = 8000;
 
@@ -70,88 +71,199 @@ export default function Hero() {
 
       ctx = gsap.context(() => {
         const n = CLIPS.length;
-        const targets = videos.map(() => 0);
 
-        // currentTime lissé en rAF vers la position dictée par le scroll.
-        // Deux protections clés pour la fluidité mobile :
-        //  - jamais de nouveau seek tant que le précédent n'est pas terminé
-        //    (video.seeking) — sinon les demandes s'empilent et saccadent ;
-        //  - rattrapage plus vif sur mobile (les fichiers mobile/ sont
-        //    encodés all-intra : chaque seek ne décode qu'une image).
-        const lerp = isMobile ? 0.4 : 0.22;
-        tickerFn = () => {
+        const overlayParts = (i: number) => ({
+          overlay: overlayRefs.current[i],
+          rule: ruleRefs.current[i],
+          parts: [labelRefs.current[i], titleRefs.current[i], dataRefs.current[i]],
+        });
+
+        // État initial des overlays (commun aux deux modes).
+        CLIPS.forEach((_, i) => {
+          const { overlay, rule, parts } = overlayParts(i);
+          if (!overlay || !rule) return;
+          gsap.set(overlay, { autoAlpha: 0 });
+          gsap.set(parts, { yPercent: 110 });
+          gsap.set(rule, { width: 0 });
+        });
+
+        if (isMobile) {
+          // ── Mode chapitres (mobile) : un geste de scroll = une séquence
+          // jouée en ENTIER (lecture native 60 fps, aucun seek). Le scroll
+          // s'aimante sur chaque chapitre ; le texte entre au début de la
+          // séquence et sort au chapitre suivant. ──
+          let currentSeg = -1;
+          // Texte affiché au DÉBUT de la séquence, retiré pendant l'action
+          // (illisible sur image en mouvement), puis réaffiché à la FIN quand
+          // la vidéo se fige sur sa dernière image.
+          let hideCall: ReturnType<typeof gsap.delayedCall> | null = null;
+          const OVERLAY_INTRO_S = 2.4;
+
+          const showOverlay = (i: number) => {
+            const { overlay, rule, parts } = overlayParts(i);
+            if (!overlay || !rule) return;
+            gsap.set(overlay, { autoAlpha: 1, y: 0 });
+            gsap.to(parts, {
+              yPercent: 0,
+              duration: 0.55,
+              ease: "power3.out",
+              stagger: 0.08,
+              delay: 0.15,
+            });
+            gsap.to(rule, { width: "6.5rem", duration: 0.5, ease: "power2.inOut", delay: 0.3 });
+          };
+
+          const hideOverlay = (i: number) => {
+            const { overlay, rule, parts } = overlayParts(i);
+            if (!overlay || !rule) return;
+            gsap.to(overlay, {
+              autoAlpha: 0,
+              y: -20,
+              duration: 0.25,
+              ease: "power2.in",
+              onComplete: () => {
+                gsap.set(overlay, { y: 0 });
+                gsap.set(parts, { yPercent: 110 });
+                gsap.set(rule, { width: 0 });
+              },
+            });
+          };
+
+          const setSegment = (seg: number) => {
+            if (seg === currentSeg) return;
+            const prev = currentSeg;
+            currentSeg = seg;
+            hideCall?.kill();
+
+            videos.forEach((video, i) => {
+              if (!video) return;
+              video.classList.toggle("is-front", i === seg);
+              if (i === seg) {
+                gsap.to(video, { opacity: 1, duration: 0.35, ease: "power1.out" });
+                try {
+                  video.currentTime = 0;
+                } catch {
+                  /* métadonnées pas encore prêtes */
+                }
+                video.play().catch(() => {});
+              } else {
+                gsap.to(video, { opacity: 0, duration: 0.35, ease: "power1.out" });
+                video.pause();
+              }
+            });
+
+            if (prev >= 0) hideOverlay(prev);
+            showOverlay(seg);
+            // Retrait du texte pendant l'action, sauf si la séquence est déjà finie.
+            hideCall = gsap.delayedCall(OVERLAY_INTRO_S, () => {
+              if (seg === currentSeg && !videos[seg]?.ended) hideOverlay(seg);
+            });
+          };
+
+          // Fin de séquence : image figée → le texte revient, parfaitement lisible.
           videos.forEach((video, i) => {
-            if (!video?.duration || video.seeking) return;
-            const target = targets[i];
-            if (Math.abs(video.currentTime - target) > 0.01) {
-              video.currentTime += (target - video.currentTime) * lerp;
-            }
+            video?.addEventListener("ended", () => {
+              if (i === currentSeg) showOverlay(i);
+            });
           });
-        };
-        gsap.ticker.add(tickerFn);
 
-        const tl = gsap.timeline({
-          scrollTrigger: {
+          ScrollTrigger.create({
             trigger: section,
             start: "top top",
-            end: `+=${n * (isMobile ? MOBILE_SCROLL_PER_CLIP : SCROLL_PER_CLIP)}%`,
-            scrub: isMobile ? 0.4 : 0.6,
+            end: `+=${n * MOBILE_SCROLL_PER_CLIP}%`,
             pin: true,
             anticipatePin: 1,
+            // Aimantation au centre de chaque chapitre ; 0 et 1 restent
+            // atteignables pour entrer/sortir de la section sans résistance.
+            snap: {
+              snapTo: (value) => {
+                if (value < 0.04) return 0;
+                if (value > 0.96) return 1;
+                return (Math.min(Math.floor(value * n), n - 1) + 0.5) / n;
+              },
+              duration: { min: 0.25, max: 0.7 },
+              ease: "power2.out",
+              delay: 0.05,
+            },
             onUpdate(self) {
               const p = Math.min(self.progress, 0.9999);
-              const seg = Math.floor(p * n);
-              const local = p * n - seg;
-
-              videos.forEach((video, i) => {
-                if (!video) return;
-                video.classList.toggle("is-front", i === seg);
-                if (i === seg && video.duration) targets[i] = local * video.duration;
-                if (i === seg + 1) targets[i] = 0;
-              });
-
-              const next = videos[seg + 1];
-              if (local > 1 - CROSSFADE && next) {
-                const f = (local - (1 - CROSSFADE)) / CROSSFADE;
-                next.classList.add("is-front");
-                next.style.opacity = String(f);
-                if (videos[seg]) videos[seg]!.style.opacity = String(1 - f);
-              } else {
-                videos.forEach((video, i) => {
-                  if (video) video.style.opacity = i === seg ? "1" : "0";
-                });
-              }
-
+              setSegment(Math.floor(p * n));
               flightPathRef.current?.update(p);
             },
-          },
-        });
+          });
 
-        CLIPS.forEach((_, i) => {
-          const overlay = overlayRefs.current[i];
-          const label = labelRefs.current[i];
-          const title = titleRefs.current[i];
-          const rule = ruleRefs.current[i];
-          const data = dataRefs.current[i];
-          if (!overlay || !label || !title || !rule || !data) return;
+          setSegment(0);
+        } else {
+          // ── Desktop : scrub image par image, currentTime lissé en rAF. ──
+          const targets = videos.map(() => 0);
 
-          gsap.set(overlay, { autoAlpha: 0 });
-          gsap.set([label, title, data], { yPercent: 110 });
-          gsap.set(rule, { width: 0 });
+          tickerFn = () => {
+            videos.forEach((video, i) => {
+              if (!video?.duration || video.seeking) return;
+              const target = targets[i];
+              if (Math.abs(video.currentTime - target) > 0.01) {
+                video.currentTime += (target - video.currentTime) * 0.22;
+              }
+            });
+          };
+          gsap.ticker.add(tickerFn);
 
-          const IN = i + 0.06;
-          const OUT = i + 0.8;
+          const tl = gsap.timeline({
+            scrollTrigger: {
+              trigger: section,
+              start: "top top",
+              end: `+=${n * SCROLL_PER_CLIP}%`,
+              scrub: 0.6,
+              pin: true,
+              anticipatePin: 1,
+              onUpdate(self) {
+                const p = Math.min(self.progress, 0.9999);
+                const seg = Math.floor(p * n);
+                const local = p * n - seg;
 
-          tl.set(overlay, { autoAlpha: 1 }, IN)
-            .to(label, { yPercent: 0, duration: 0.1, ease: "power3.out" }, IN)
-            .to(title, { yPercent: 0, duration: 0.14, ease: "power3.out" }, IN + 0.03)
-            .to(rule, { width: "6.5rem", duration: 0.12, ease: "power2.inOut" }, IN + 0.07)
-            .to(data, { yPercent: 0, duration: 0.1, ease: "power3.out" }, IN + 0.09)
-            .to(overlay, { autoAlpha: 0, y: -28, duration: 0.1, ease: "power2.in" }, OUT)
-            .set(overlay, { y: 0 }, OUT + 0.11);
-        });
+                videos.forEach((video, i) => {
+                  if (!video) return;
+                  video.classList.toggle("is-front", i === seg);
+                  if (i === seg && video.duration) targets[i] = local * video.duration;
+                  if (i === seg + 1) targets[i] = 0;
+                });
 
-        tl.set({}, {}, n);
+                const next = videos[seg + 1];
+                if (local > 1 - CROSSFADE && next) {
+                  const f = (local - (1 - CROSSFADE)) / CROSSFADE;
+                  next.classList.add("is-front");
+                  next.style.opacity = String(f);
+                  if (videos[seg]) videos[seg]!.style.opacity = String(1 - f);
+                } else {
+                  videos.forEach((video, i) => {
+                    if (video) video.style.opacity = i === seg ? "1" : "0";
+                  });
+                }
+
+                flightPathRef.current?.update(p);
+              },
+            },
+          });
+
+          CLIPS.forEach((_, i) => {
+            const { overlay, rule, parts } = overlayParts(i);
+            const [label, title, data] = parts;
+            if (!overlay || !rule || !label || !title || !data) return;
+
+            const IN = i + 0.06;
+            const OUT = i + 0.8;
+
+            tl.set(overlay, { autoAlpha: 1 }, IN)
+              .to(label, { yPercent: 0, duration: 0.1, ease: "power3.out" }, IN)
+              .to(title, { yPercent: 0, duration: 0.14, ease: "power3.out" }, IN + 0.03)
+              .to(rule, { width: "6.5rem", duration: 0.12, ease: "power2.inOut" }, IN + 0.07)
+              .to(data, { yPercent: 0, duration: 0.1, ease: "power3.out" }, IN + 0.09)
+              .to(overlay, { autoAlpha: 0, y: -28, duration: 0.1, ease: "power2.in" }, OUT)
+              .set(overlay, { y: 0 }, OUT + 0.11);
+          });
+
+          tl.set({}, {}, n);
+        }
       }, section);
     });
 
