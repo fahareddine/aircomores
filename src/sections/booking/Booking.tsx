@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import Reveal from "../../components/Reveal";
+import { getSearchIntent, subscribeSearchIntent } from "../../lib/searchIntent";
 import SectionHeading from "../../components/SectionHeading";
 import {
   BookingError,
@@ -26,7 +27,7 @@ const STEP_LABELS: { key: Step; label: string }[] = [
   { key: "done", label: "Confirmation" },
 ];
 
-export default function Booking() {
+export default function Booking({ embedded = false }: { embedded?: boolean }) {
   const [departures, setDepartures] = useState<BookableDeparture[]>([]);
   const [isLoadingDepartures, setIsLoadingDepartures] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -53,6 +54,12 @@ export default function Booking() {
   };
 
   useEffect(loadDepartures, []);
+
+  // Une recherche lancée depuis le hero ramène toujours à l'étape « Vol ».
+  const intent = useSyncExternalStore(subscribeSearchIntent, getSearchIntent, () => null);
+  useEffect(() => {
+    if (intent) setStep("flight");
+  }, [intent?.version]);
 
   const selectedDeparture = departures.find((d) => d.id === selectedId) ?? null;
   const selectedReturn = departures.find((d) => d.id === selectedReturnId) ?? null;
@@ -103,96 +110,124 @@ export default function Booking() {
 
   const currentStepIndex = STEP_LABELS.findIndex((s) => s.key === step);
 
+  // En mode embedded (collé au hero) : rien tant qu'aucune recherche n'a été lancée.
+  if (embedded && !intent) return null;
+
+  const stepper = (
+    <ol className="flex items-center gap-2" aria-label="Étapes de réservation">
+      {STEP_LABELS.map((s, i) => (
+        <li key={s.key} className="flex items-center gap-2">
+          <span
+            className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${
+              i < currentStepIndex
+                ? "bg-[var(--vert)] text-white"
+                : i === currentStepIndex
+                  ? "bg-[var(--jaune)] text-[var(--fg)]"
+                  : "bg-[var(--muted)] text-[var(--mutedfg)]"
+            }`}
+            aria-current={i === currentStepIndex ? "step" : undefined}
+          >
+            {i + 1}
+          </span>
+          <span
+            className={`hidden text-sm sm:inline ${
+              i === currentStepIndex
+                ? "font-semibold text-[var(--fg)]"
+                : "text-[var(--mutedfg)]"
+            }`}
+          >
+            {s.label}
+          </span>
+          {i < STEP_LABELS.length - 1 && (
+            <span aria-hidden="true" className="h-px w-6 bg-[var(--bordc)]" />
+          )}
+        </li>
+      ))}
+    </ol>
+  );
+
+  const stepContent = (
+    <div className="mt-8">
+      {step === "flight" && (
+        <FlightPicker
+          departures={departures}
+          isLoading={isLoadingDepartures}
+          error={loadError}
+          selectedId={selectedId}
+          selectedReturnId={selectedReturnId}
+          isRoundTrip={isRoundTrip}
+          passengerCount={passengerCount}
+          onSelect={setSelectedId}
+          onSelectReturn={setSelectedReturnId}
+          onRoundTripChange={setIsRoundTrip}
+          onPassengerCountChange={setPassengerCount}
+          onNext={() => setStep("details")}
+          hideSearch={embedded}
+        />
+      )}
+
+      {step === "details" && selectedDeparture && (
+        <BookingForm
+          departure={selectedDeparture}
+          returnDeparture={isRoundTrip ? selectedReturn : null}
+          passengerCount={passengerCount}
+          contact={contact}
+          passengerNames={passengerNames}
+          onContactChange={setContact}
+          onPassengerNamesChange={setPassengerNames}
+          onBack={() => setStep("flight")}
+          onNext={() => setStep("payment")}
+        />
+      )}
+
+      {step === "payment" && (
+        <PaymentStep
+          selected={paymentMethod}
+          totalPriceKmf={totalPriceKmf}
+          isSubmitting={isSubmitting}
+          submitError={submitError}
+          onSelect={setPaymentMethod}
+          onBack={() => setStep("details")}
+          onSubmit={handleSubmit}
+        />
+      )}
+
+      {step === "done" && confirmation && (
+        <BookingConfirmation confirmation={confirmation} onNewBooking={resetForNewBooking} />
+      )}
+    </div>
+  );
+
+  // ── Mode embedded : panneau blanc dans le bloc hero, sous la barre. ──
+  if (embedded) {
+    return (
+      <div
+        id="reservation-flow"
+        className="mt-6 scroll-mt-28 rounded-[calc(var(--radius)*1.6)] border border-white/50 bg-white/95 p-5 backdrop-blur-md md:p-7"
+        style={{ boxShadow: "0 30px 70px -15px rgba(3,25,50,.55)" }}
+      >
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <h3 className="font-[var(--display)] text-lg font-semibold text-[var(--vert)]">
+            Votre réservation
+          </h3>
+          {stepper}
+        </div>
+        {stepContent}
+      </div>
+    );
+  }
+
+  // ── Mode autonome (section pleine page). ──
   return (
     <section id="reservation" className="px-6 py-24 sm:px-8">
       <div className="mx-auto max-w-3xl">
         <Reveal>
           <SectionHeading kicker="Réservation" title="Je réserve mon vol" />
         </Reveal>
-
         <Reveal delay={0.05}>
-          <ol className="mt-8 flex items-center gap-2" aria-label="Étapes de réservation">
-            {STEP_LABELS.map((s, i) => (
-              <li key={s.key} className="flex items-center gap-2">
-                <span
-                  className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${
-                    i < currentStepIndex
-                      ? "bg-[var(--vert)] text-white"
-                      : i === currentStepIndex
-                        ? "bg-[var(--jaune)] text-[var(--fg)]"
-                        : "bg-[var(--muted)] text-[var(--mutedfg)]"
-                  }`}
-                  aria-current={i === currentStepIndex ? "step" : undefined}
-                >
-                  {i + 1}
-                </span>
-                <span
-                  className={`hidden text-sm sm:inline ${
-                    i === currentStepIndex
-                      ? "font-semibold text-[var(--fg)]"
-                      : "text-[var(--mutedfg)]"
-                  }`}
-                >
-                  {s.label}
-                </span>
-                {i < STEP_LABELS.length - 1 && (
-                  <span aria-hidden="true" className="h-px w-6 bg-[var(--bordc)]" />
-                )}
-              </li>
-            ))}
-          </ol>
+          <div className="mt-8">{stepper}</div>
         </Reveal>
-
-        <Reveal delay={0.1}>
-          <div className="mt-8">
-            {step === "flight" && (
-              <FlightPicker
-                departures={departures}
-                isLoading={isLoadingDepartures}
-                error={loadError}
-                selectedId={selectedId}
-                selectedReturnId={selectedReturnId}
-                isRoundTrip={isRoundTrip}
-                passengerCount={passengerCount}
-                onSelect={setSelectedId}
-                onSelectReturn={setSelectedReturnId}
-                onRoundTripChange={setIsRoundTrip}
-                onPassengerCountChange={setPassengerCount}
-                onNext={() => setStep("details")}
-              />
-            )}
-
-            {step === "details" && selectedDeparture && (
-              <BookingForm
-                departure={selectedDeparture}
-                returnDeparture={isRoundTrip ? selectedReturn : null}
-                passengerCount={passengerCount}
-                contact={contact}
-                passengerNames={passengerNames}
-                onContactChange={setContact}
-                onPassengerNamesChange={setPassengerNames}
-                onBack={() => setStep("flight")}
-                onNext={() => setStep("payment")}
-              />
-            )}
-
-            {step === "payment" && (
-              <PaymentStep
-                selected={paymentMethod}
-                totalPriceKmf={totalPriceKmf}
-                isSubmitting={isSubmitting}
-                submitError={submitError}
-                onSelect={setPaymentMethod}
-                onBack={() => setStep("details")}
-                onSubmit={handleSubmit}
-              />
-            )}
-
-            {step === "done" && confirmation && (
-              <BookingConfirmation confirmation={confirmation} onNewBooking={resetForNewBooking} />
-            )}
-          </div>
-        </Reveal>
+        <Reveal delay={0.1}>{stepContent}</Reveal>
       </div>
     </section>
   );

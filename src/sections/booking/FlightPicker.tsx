@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { ArrowRight, Plane } from "lucide-react";
 import type { BookableDeparture } from "../../lib/booking";
+import { getSearchIntent, subscribeSearchIntent } from "../../lib/searchIntent";
 import SearchBar from "./SearchBar";
 
 type Props = {
@@ -16,6 +17,8 @@ type Props = {
   onRoundTripChange: (roundTrip: boolean) => void;
   onPassengerCountChange: (count: number) => void;
   onNext: () => void;
+  /** Masque la recherche interne (départ/arrivée/dates) : la barre du hero la gère. */
+  hideSearch?: boolean;
 };
 
 function formatDate(dateStr: string): string {
@@ -76,6 +79,7 @@ export default function FlightPicker({
   onRoundTripChange,
   onPassengerCountChange,
   onNext,
+  hideSearch = false,
 }: Props) {
   // Réseau à 3 îles : chaque île dessert les 2 autres, un vol/jour/liaison.
   const origins = useMemo(
@@ -85,6 +89,9 @@ export default function FlightPicker({
 
   const [selectedOrigin, setSelectedOrigin] = useState<string | null>(null);
   const [selectedDestination, setSelectedDestination] = useState<string | null>(null);
+
+  // Intention de recherche émise par le ReservationBar (collé au hero).
+  const intent = useSyncExternalStore(subscribeSearchIntent, getSearchIntent, () => null);
 
   useEffect(() => {
     if (!selectedOrigin && origins.length > 0) setSelectedOrigin(origins[0]);
@@ -157,6 +164,37 @@ export default function FlightPicker({
     if (passengerCount > maxPassengers) onPassengerCountChange(maxPassengers);
   }, [maxPassengers, passengerCount, onPassengerCountChange]);
 
+  // Applique la recherche lancée depuis le hero : trajet, dates, passagers.
+  useEffect(() => {
+    if (!intent) return;
+    setSelectedOrigin(intent.origin);
+    setSelectedDestination(intent.destination);
+    onRoundTripChange(intent.tripType === "round");
+    onPassengerCountChange(intent.passengers);
+
+    const aller = departures.find(
+      (d) =>
+        d.leg.routeFrom === intent.origin &&
+        d.leg.routeTo === intent.destination &&
+        d.departureDate === intent.departureDate,
+    );
+    onSelect(aller?.id ?? null);
+
+    if (intent.tripType === "round" && intent.returnDate) {
+      const retour = departures.find(
+        (d) =>
+          d.leg.routeFrom === intent.destination &&
+          d.leg.routeTo === intent.origin &&
+          d.departureDate === intent.returnDate,
+      );
+      onSelectReturn(retour?.id ?? null);
+    } else {
+      onSelectReturn(null);
+    }
+    // Déclenché uniquement à chaque nouvelle recherche (version).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [intent?.version]);
+
   const handleSelectDate = (dateKey: string) => {
     const departure = departuresByDate.get(dateKey);
     if (departure) {
@@ -191,52 +229,56 @@ export default function FlightPicker({
 
   return (
     <div>
-      <div className="mb-5 inline-flex rounded-full border border-[var(--bordc)] bg-white p-1">
-        <button
-          type="button"
-          onClick={() => {
-            onRoundTripChange(false);
-            onSelectReturn(null);
-          }}
-          className={`rounded-full px-5 py-2 text-sm font-semibold transition-colors ${
-            !isRoundTrip
-              ? "depth-3d bg-[var(--vert)] text-white"
-              : "text-[var(--mutedfg)] hover:text-[var(--vert)]"
-          }`}
-        >
-          Aller simple
-        </button>
-        <button
-          type="button"
-          onClick={() => onRoundTripChange(true)}
-          className={`rounded-full px-5 py-2 text-sm font-semibold transition-colors ${
-            isRoundTrip
-              ? "depth-3d bg-[var(--vert)] text-white"
-              : "text-[var(--mutedfg)] hover:text-[var(--vert)]"
-          }`}
-        >
-          Aller-retour
-        </button>
-      </div>
+      {!hideSearch && (
+        <>
+          <div className="mb-5 inline-flex rounded-full border border-[var(--bordc)] bg-white p-1">
+            <button
+              type="button"
+              onClick={() => {
+                onRoundTripChange(false);
+                onSelectReturn(null);
+              }}
+              className={`rounded-full px-5 py-2 text-sm font-semibold transition-colors ${
+                !isRoundTrip
+                  ? "depth-3d bg-[var(--vert)] text-white"
+                  : "text-[var(--mutedfg)] hover:text-[var(--vert)]"
+              }`}
+            >
+              Aller simple
+            </button>
+            <button
+              type="button"
+              onClick={() => onRoundTripChange(true)}
+              className={`rounded-full px-5 py-2 text-sm font-semibold transition-colors ${
+                isRoundTrip
+                  ? "depth-3d bg-[var(--vert)] text-white"
+                  : "text-[var(--mutedfg)] hover:text-[var(--vert)]"
+              }`}
+            >
+              Aller-retour
+            </button>
+          </div>
 
-      <SearchBar
-        isRoundTrip={isRoundTrip}
-        origins={origins}
-        destinations={destinations}
-        selectedOrigin={selectedOrigin}
-        selectedDestination={selectedDestination}
-        onSelectOrigin={handleSelectOrigin}
-        onSelectDestination={handleSelectDestination}
-        departuresByDate={departuresByDate}
-        selectedDate={selected?.departureDate ?? null}
-        onSelectDate={handleSelectDate}
-        returnDeparturesByDate={returnDeparturesByDate}
-        selectedReturnDate={selectedReturn?.departureDate ?? null}
-        onSelectReturnDate={handleSelectReturnDate}
-        passengerCount={passengerCount}
-        maxPassengers={maxPassengers}
-        onPassengerCountChange={onPassengerCountChange}
-      />
+          <SearchBar
+            isRoundTrip={isRoundTrip}
+            origins={origins}
+            destinations={destinations}
+            selectedOrigin={selectedOrigin}
+            selectedDestination={selectedDestination}
+            onSelectOrigin={handleSelectOrigin}
+            onSelectDestination={handleSelectDestination}
+            departuresByDate={departuresByDate}
+            selectedDate={selected?.departureDate ?? null}
+            onSelectDate={handleSelectDate}
+            returnDeparturesByDate={returnDeparturesByDate}
+            selectedReturnDate={selectedReturn?.departureDate ?? null}
+            onSelectReturnDate={handleSelectReturnDate}
+            passengerCount={passengerCount}
+            maxPassengers={maxPassengers}
+            onPassengerCountChange={onPassengerCountChange}
+          />
+        </>
+      )}
 
       {selected ? (
         <div

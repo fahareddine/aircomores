@@ -90,7 +90,7 @@ export default function DateDropdown({
         <div
           role="dialog"
           aria-label={label}
-          className="absolute left-1/2 top-full z-30 mt-3 w-[330px] -translate-x-1/2 rounded-2xl border border-[var(--or)]/30 bg-white p-5 shadow-[0_18px_44px_rgba(22,33,26,.18)]"
+          className="animate-pop-in-center absolute left-1/2 top-full z-30 mt-3 w-[330px] -translate-x-1/2 rounded-2xl border border-[var(--or)]/30 bg-white p-5 shadow-[0_18px_44px_rgba(22,33,26,.18)]"
         >
           <div className="mb-4 flex items-center justify-between">
             <p className="font-[var(--data)] text-[10px] uppercase tracking-[0.3em] text-[var(--vert)]">

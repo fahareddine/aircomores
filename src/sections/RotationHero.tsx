@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight } from "lucide-react";
 import { VOLS } from "../data/vols";
+import ReservationBar from "./booking/ReservationBar";
+import Booking from "./booking/Booking";
 
 const ISLAND_COUNT = new Set(VOLS.flatMap((vol) => [vol.route.from, vol.route.to])).size;
 const TOTAL_MINUTES = VOLS.reduce((sum, vol) => sum + parseInt(vol.duration, 10), 0);
@@ -55,8 +57,28 @@ export default function RotationHero() {
     <section
       ref={sectionRef}
       aria-label="Une seule rotation pour les trois îles"
-      className="relative overflow-hidden bg-[var(--bleu)]"
+      className="relative bg-[var(--bleu)]"
     >
+      {/* Littoral : bord supérieur en vague qui remonte sur le hero. Les crêtes
+          teal montent dans la mer du hero, les creux le laissent transparaître. */}
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 1440 110"
+        preserveAspectRatio="none"
+        className="pointer-events-none absolute inset-x-0 top-0 z-20 h-[110px] w-full -translate-y-[70px]"
+      >
+        <defs>
+          <linearGradient id="rh-wave-fade" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#173a3b" />
+            <stop offset="55%" stopColor="#173a3b" />
+            <stop offset="100%" stopColor="#173a3b" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path
+          d="M0,110 L1440,110 L1440,46 C 1180,86 1040,14 800,50 C 600,80 430,20 220,54 C 120,70 60,46 0,52 Z"
+          fill="url(#rh-wave-fade)"
+        />
+      </svg>
       <video
         aria-hidden="true"
         autoPlay
@@ -67,11 +89,21 @@ export default function RotationHero() {
       >
         <source src="/videos/02-envol-anjouan.mp4" type="video/mp4" />
       </video>
-      {/* Voile bleu (Grande Comore) volontairement léger au centre pour
-          laisser l'avion visible ; plus dense en bas pour la lisibilité. */}
+      {/* Continuité de couleur : le haut reprend le vert-océan du hero puis
+          glisse vers le bleu identitaire — les deux mers se rejoignent. */}
       <div
         aria-hidden="true"
-        className="absolute inset-0 bg-gradient-to-b from-[var(--bleu)]/45 via-[var(--bleu)]/20 to-[#1d4a85]/70"
+        className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-[#173a3b] via-[#173a3b]/45 to-transparent"
+      />
+      {/* Voile bleu (identité Grande Comore), dense en bas pour la lisibilité. */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-gradient-to-b from-transparent via-[var(--bleu)]/25 to-[#1d4a85]/85"
+      />
+      {/* Protection du texte à gauche — même dégradé que le scrim du hero. */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-gradient-to-r from-[#06263f]/65 via-[#06263f]/15 to-transparent"
       />
 
       <div className="relative z-10 mx-auto max-w-6xl px-6 py-24 sm:px-8 md:py-32">
@@ -100,23 +132,28 @@ export default function RotationHero() {
           chaleureux — karibu.
         </p>
 
-        <div {...anim(360)} className={`mt-9 flex flex-wrap gap-4 ${anim(360).className}`}>
-          <a
-            href="#reservation"
-            className="depth-3d group inline-flex items-center gap-2 rounded-full bg-[var(--jaune)] px-7 py-3.5 font-semibold text-[var(--fg)] transition-colors hover:bg-[var(--jaune-light)]"
-          >
-            Réserver mon vol
-            <ArrowRight size={17} className="transition-transform group-hover:translate-x-1" />
-          </a>
+        {/* Moteur de réservation : pièce maîtresse du hero, posé sur le fond bleu. */}
+        <div id="reservation" {...anim(360)} className={`relative z-30 mt-10 scroll-mt-28 ${anim(360).className}`}>
+          <ReservationBar />
+        </div>
+
+        {/* Tunnel complet (vol → passagers → paiement → confirmation) dans le même
+            bloc : n'apparaît qu'après une recherche. */}
+        <div className="relative z-30">
+          <Booking embedded />
+        </div>
+
+        <div {...anim(460)} className={`mt-5 flex justify-end ${anim(460).className}`}>
           <a
             href="#tarifs"
-            className="inline-flex items-center rounded-full border border-white/40 px-7 py-3.5 font-semibold text-white transition-colors hover:border-white hover:bg-white/10"
+            className="group inline-flex items-center gap-1.5 text-sm font-semibold text-white/90 underline-offset-4 transition-colors hover:text-[var(--jaune)] hover:underline"
           >
-            Voir les horaires
+            Voir les horaires &amp; tarifs
+            <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
           </a>
         </div>
 
-        <div className="mt-16 grid gap-px overflow-hidden rounded-2xl border border-white/20 bg-white/20 sm:grid-cols-3">
+        <div className="mt-14 grid gap-px overflow-hidden rounded-2xl border border-white/20 bg-white/20 sm:grid-cols-3">
           {STATS.map((stat, i) => (
             <div
               key={stat.title}

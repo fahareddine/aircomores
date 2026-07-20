@@ -45,7 +45,7 @@ export default function IslandDropdown({ placeholder, options, selected, onSelec
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 top-full z-20 mt-2 w-56 rounded-2xl border border-[var(--bordc)] bg-white p-2 shadow-2xl">
+        <div className="animate-pop-in absolute left-0 top-full z-20 mt-2 w-56 rounded-2xl border border-[var(--bordc)] bg-white p-2 shadow-2xl">
           {options.map((island) => (
             <button
               key={island}

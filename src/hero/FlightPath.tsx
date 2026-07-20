@@ -62,10 +62,13 @@ export default function FlightPath({ fromCode, toCode, ref }: Props) {
           {toCode}
         </text>
         <g ref={planeRef}>
+          {/* Silhouette d'avion (vue de dessus), nez vers +x : la rotation
+              tangente du groupe l'oriente dans le sens du vol. */}
           <path
             className="plane"
-            d="M0-5 L1.4-1.4 5.6 0 1.4 1.4 0 5 -1 1.2 -4 .4 -4 -.4 -1 -1.2 Z"
-            transform="rotate(90)"
+            d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"
+            transform="rotate(90) scale(0.72) translate(-12 -12)"
+            style={{ fill: "var(--or)", filter: "drop-shadow(0 1px 2px rgba(0,0,0,.55))" }}
           />
         </g>
       </svg>

@@ -39,7 +39,7 @@ export default function PassengerDropdown({ count, max, onChange }: Props) {
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 top-full z-20 mt-2 w-64 rounded-2xl border border-[var(--bordc)] bg-white p-5 shadow-2xl">
+        <div className="animate-pop-in absolute left-0 top-full z-20 mt-2 w-64 rounded-2xl border border-[var(--bordc)] bg-white p-5 shadow-2xl">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-[var(--fg)]">Passagers</p>
