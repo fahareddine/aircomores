@@ -32,3 +32,4 @@ skills et mcp gsap/
 
 .vercel
 .env*
+.gstack/
